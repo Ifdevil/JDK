@@ -624,17 +624,21 @@ public abstract class AbstractQueuedSynchronizer
      * @return the new node
      */
     private Node addWaiter(Node mode) {
+        //为当前线程创建一个等待节点
         Node node = new Node(Thread.currentThread(), mode);
         // Try the fast path of enq; backup to full enq on failure
         //将需要等待的线程加入到等待队列，如果没有队列则新建执行enq
+        //查看等待队列的尾部节点是否为空
         Node pred = tail;
         if (pred != null) {
+            //设置当前线程的节点为尾节点，扩充队列，并返回当前线程节点
             node.prev = pred;
             if (compareAndSetTail(pred, node)) {
                 pred.next = node;
                 return node;
             }
         }
+        //新建队列，插入节点
         enq(node);
         return node;
     }
@@ -777,6 +781,7 @@ public abstract class AbstractQueuedSynchronizer
         node.thread = null;
 
         // Skip cancelled predecessors
+        //跳过取消的前驱节点
         Node pred = node.prev;
         while (pred.waitStatus > 0)
             node.prev = pred = pred.prev;
@@ -789,14 +794,19 @@ public abstract class AbstractQueuedSynchronizer
         // Can use unconditional write instead of CAS here.
         // After this atomic step, other Nodes can skip past us.
         // Before, we are free of interference from other threads.
+        //设置此节点的状态为CANCELLED，代表取消状态
         node.waitStatus = Node.CANCELLED;
 
         // If we are the tail, remove ourselves.
+        //如果node是tail，更新tail为pred，并使pred.next指向null
         if (node == tail && compareAndSetTail(node, pred)) {
             compareAndSetNext(pred, predNext, null);
         } else {
             // If successor needs signal, try to set pred's next-link
             // so it will get one. Otherwise wake it up to propagate.
+            //如果node既不是tail，又不是head的后继节点
+            //则将node的前继节点的waitStatus置为SIGNAL
+            //并使node的前继节点指向node的后继节点（相当于将node从队列中删掉了）
             int ws;
             if (pred != head &&
                     ((ws = pred.waitStatus) == Node.SIGNAL ||
@@ -806,6 +816,8 @@ public abstract class AbstractQueuedSynchronizer
                 if (next != null && next.waitStatus <= 0)
                     compareAndSetNext(pred, predNext, next);
             } else {
+                //如果node是head的后继节点，则直接唤醒node的后继节点
+                //唤醒后继节点线程后，在做出队操作时将node节点删除
                 unparkSuccessor(node);
             }
 
@@ -824,10 +836,12 @@ public abstract class AbstractQueuedSynchronizer
      * @return {@code true} if thread should block
      */
     private static boolean shouldParkAfterFailedAcquire(Node pred, Node node) {
+        //前驱节点的等待状态
         int ws = pred.waitStatus;
-        //如果Node为被pre Node阻塞
+        //判断前驱节点状态
         if (ws == Node.SIGNAL)
             /*
+             * 此节点已设置状态，要求释放信号，因此可以安全停放。
              * This node has already set status asking a release
              * to signal it, so it can safely park.
              */
@@ -894,12 +908,13 @@ public abstract class AbstractQueuedSynchronizer
     final boolean acquireQueued(final Node node, int arg) {
         boolean failed = true;
         try {
+            // 线程是否中断
             boolean interrupted = false;
             for (;;) {
                 //再次尝试获取锁
                 final Node p = node.predecessor();
                 if (p == head && tryAcquire(arg)) {
-                    //获取锁 --->  清楚节点信息，设置为队列头结点
+                    //获取锁 --->  清除节点信息，设置为队列头结点
                     setHead(node);
                     p.next = null; // help GC
                     failed = false;
@@ -1016,11 +1031,13 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 以共享可中断模式获取
      * Acquires in shared interruptible mode.
      * @param arg the acquire argument
      */
     private void doAcquireSharedInterruptibly(int arg)
             throws InterruptedException {
+        // 添加节点至等待队列
         final Node node = addWaiter(Node.SHARED);
         boolean failed = true;
         try {
@@ -1333,6 +1350,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 共享模式
      * Acquires in shared mode, aborting if interrupted.  Implemented
      * by first checking interrupt status, then invoking at least once
      * {@link #tryAcquireShared}, returning on success.  Otherwise the
