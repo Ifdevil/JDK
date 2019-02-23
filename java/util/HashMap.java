@@ -1905,17 +1905,20 @@ public class HashMap<K,V> extends AbstractMap<K,V>
 
         /**
          * Ensures that the given root is the first node of its bin.
+         * 把根节点移动到桶的首位
          */
         static <K,V> void moveRootToFront(Node<K,V>[] tab, TreeNode<K,V> root) {
             int n;
+            //如果root不为null并且tab不为null并且tab数组的长度大于0
             if (root != null && tab != null && (n = tab.length) > 0) {
-                int index = (n - 1) & root.hash;
-                TreeNode<K,V> first = (TreeNode<K,V>)tab[index];
-                if (root != first) {
+                int index = (n - 1) & root.hash;//根据root的hash值计算到下标值
+                TreeNode<K,V> first = (TreeNode<K,V>)tab[index];//获取数组下标index的第一个节点
+                if (root != first) {//如果当前first不等于root
                     Node<K,V> rn;
-                    tab[index] = root;
-                    TreeNode<K,V> rp = root.prev;
-                    if ((rn = root.next) != null)
+                    tab[index] = root;//替换桶首位
+                    TreeNode<K,V> rp = root.prev;//获取root的前节点
+                    //下面的代码为将root从以前的链表中抽取出来，并放置到链表头
+                    if ((rn = root.next) != null)//如果root的下节点不为null
                         ((TreeNode<K,V>)rn).prev = rp;
                     if (rp != null)
                         rp.next = rn;
@@ -2316,55 +2319,91 @@ public class HashMap<K,V> extends AbstractMap<K,V>
             return root;
         }
 
+        /**
+         * 红黑树右旋
+         * @param root：根节点
+         * @param p：旋转节点
+         * @param <K>
+         * @param <V>
+         * @return
+         */
         static <K,V> TreeNode<K,V> rotateRight(TreeNode<K,V> root,
                                                TreeNode<K,V> p) {
             TreeNode<K,V> l, pp, lr;
+            //如果p节点不为null并且p的左节点也不为null
             if (p != null && (l = p.left) != null) {
+                //两件事：
+                // 1.将p.left节点更新为l.right
+                // 2.如果l.right不为null,更新其父节点为p
                 if ((lr = p.left = l.right) != null)
                     lr.parent = p;
+                //两件事：
+                //1.将l.parent更新为p.parent,
+                //2.如果p.parent为null,说明p是头节点，更新l为头节点，置为黑色
                 if ((pp = l.parent = p.parent) == null)
                     (root = l).red = false;
+                //p.parent即pp不为null,如果原p是pp的右节点，现在更新右节点为l
                 else if (pp.right == p)
                     pp.right = l;
+                //如果原p是pp的左节点，现在更新左节点为l
                 else
                     pp.left = l;
+                //右旋，所以更新l的右节点为p，p的父节点为l
                 l.right = p;
                 p.parent = l;
             }
             return root;
         }
 
+        /**
+         * 重新平衡红黑树，返回头结点
+         * @param root：根节点
+         * @param x：新添加的节点
+         * @param <K>
+         * @param <V>
+         * @return
+         */
         static <K,V> TreeNode<K,V> balanceInsertion(TreeNode<K,V> root,
                                                     TreeNode<K,V> x) {
-            x.red = true;
+            x.red = true;//初始x节点颜色为红色
             for (TreeNode<K,V> xp, xpp, xppl, xppr;;) {
+                //查看有没有父节点，如果没有说明是头节点，头节点为黑色，返回头节点
                 if ((xp = x.parent) == null) {
                     x.red = false;
                     return x;
                 }
+                //如果x的父节点不是红色(即黑色)，或者x的祖父节点为null，
+                // 则不必旋转或改颜色，直接返回头节点
                 else if (!xp.red || (xpp = xp.parent) == null)
                     return root;
+                //走到这里说明x的父节点至少在第三层且父节点为红色，要重新平衡
+                //如果x的父节点是祖父节点的左子节点
                 if (xp == (xppl = xpp.left)) {
+                    //如果父节点的兄弟节点不为null并且兄弟节点为红色
                     if ((xppr = xpp.right) != null && xppr.red) {
-                        xppr.red = false;
-                        xp.red = false;
-                        xpp.red = true;
-                        x = xpp;
+                        xppr.red = false;//兄弟节点改为黑色
+                        xp.red = false;//父节点也变为黑色
+                        xpp.red = true;//祖父节点变为红色
+                        x = xpp;//更新x为祖父节点，进入下次循环
                     }
+                    //如果x父节点的兄弟节点为null或者为黑色
                     else {
+                        //如果x是父节点的右子节点
                         if (x == xp.right) {
-                            root = rotateLeft(root, x = xp);
+                            root = rotateLeft(root, x = xp);//左旋
                             xpp = (xp = x.parent) == null ? null : xp.parent;
                         }
+                        //如果x是父节点的左子节点
                         if (xp != null) {
-                            xp.red = false;
+                            xp.red = false;//修改x父节点颜色为黑色
                             if (xpp != null) {
-                                xpp.red = true;
-                                root = rotateRight(root, xpp);
+                                xpp.red = true;//修改祖父节点颜色为红色
+                                root = rotateRight(root, xpp);//红黑树右旋，更新root值
                             }
                         }
                     }
                 }
+                //如果x的父节点是祖父节点的右子节点，和左子节点类似，对称情形
                 else {
                     if (xppl != null && xppl.red) {
                         xppl.red = false;
